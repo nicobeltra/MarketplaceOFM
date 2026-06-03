@@ -115,7 +115,23 @@ export default function AppShell({ userEmail }) {
       supabase.from('alerts').select('*').order('created_at', { ascending: false }),
       supabase.from('settings').select('*').maybeSingle(),
     ]);
-    setModels(mRes.data || []);
+    let modelsData = mRes.data || [];
+    // Backfill: asignar SKU a modelos viejos que no lo tengan
+    const missing = modelsData.filter((m) => !m.sku);
+    if (missing.length) {
+      const used = new Set(modelsData.map((m) => m.sku).filter(Boolean));
+      const updates = [];
+      for (const m of missing) {
+        let sku = genSku(); let g = 0;
+        while (used.has(sku) && g < 30) { sku = genSku(); g++; }
+        used.add(sku);
+        updates.push({ id: m.id, sku });
+      }
+      await Promise.all(updates.map((u) => supabase.from('models').update({ sku: u.sku }).eq('id', u.id)));
+      const map = Object.fromEntries(updates.map((u) => [u.id, u.sku]));
+      modelsData = modelsData.map((m) => (m.sku ? m : { ...m, sku: map[m.id] }));
+    }
+    setModels(modelsData);
     setContacts(cRes.data || []);
     setCategories(catRes.data || []);
     setSearches(sRes.data || []);
@@ -157,7 +173,10 @@ export default function AppShell({ userEmail }) {
 
   // ============ MODELS ============
   function openNewModel() {
-    setModelModal({ data: { ...EMPTY_MODEL }, editingId: null, newFiles: [] });
+    const used = new Set(models.map((x) => x.sku).filter(Boolean));
+    let sku = genSku(); let g = 0;
+    while (used.has(sku) && g < 30) { sku = genSku(); g++; }
+    setModelModal({ data: { ...EMPTY_MODEL }, editingId: null, sku, newFiles: [] });
   }
   function openEditModel(m) {
     setDetailId(null);
@@ -224,9 +243,9 @@ export default function AppShell({ userEmail }) {
         setModels((p) => p.map((x) => (x.id === data.id ? data : x)));
         showToast('Actualizado', `${data.name} actualizada.`, 'success');
       } else {
-        // generar SKU único
+        // SKU único (ya generado al abrir el modal, con fallback)
         const existing = new Set(models.map((x) => x.sku).filter(Boolean));
-        let sku = genSku();
+        let sku = md.sku || genSku();
         let guard = 0;
         while (existing.has(sku) && guard < 20) { sku = genSku(); guard++; }
         const { data, error } = await supabase.from('models').insert({ ...payload, sku }).select().single();
@@ -769,7 +788,7 @@ function ModelModal({ md, setMd, categories, sellers, buyers, onSave, onClose, s
   return (
     <div className="overlay open" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ maxWidth: 780 }}>
-        <div className="mhead"><div className="mtitle">{md.editingId ? `Editar — ${md.sku}` : 'New Model Profile'}</div><button className="mclose" onClick={onClose}>✕</button></div>
+        <div className="mhead"><div className="mtitle">{md.editingId ? `Editar — ${md.sku}` : `New Profile — ${md.sku}`}</div><button className="mclose" onClick={onClose}>✕</button></div>
         <div className="mbody" style={{ maxHeight: '72vh', overflowY: 'auto' }}>
           <div className="fg">
             <div className="fseclbl">Basic Info</div>
