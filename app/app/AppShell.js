@@ -21,6 +21,7 @@ const EMPTY_MODEL = {
   age: '', origin: '', phone: '', pct: '', time_per_day: '', english: '', content: '',
   contract: 'No', agency: 'No', start_when: '', social: 'No', tiktok: 'No', blocked: '',
   verified: 'No', fee: '', notes: '', photos: [],
+  real_name: '', whatsapp: '', instagram: '',
   price_listing: '', price_final: '', commission: '',
 };
 
@@ -188,6 +189,7 @@ export default function AppShell({ userEmail }) {
         content: m.content || '', contract: m.contract || 'No', agency: m.agency || 'No',
         start_when: m.start_when || '', social: m.social || 'No', tiktok: m.tiktok || 'No',
         blocked: m.blocked || '', verified: m.verified || 'No', fee: m.fee || '', notes: m.notes || '',
+        real_name: m.real_name || '', whatsapp: m.whatsapp || '', instagram: m.instagram || '',
         photos: m.photos || [],
         price_listing: m.price_listing ?? '', price_final: m.price_final ?? '', commission: m.commission ?? '',
       },
@@ -211,7 +213,7 @@ export default function AppShell({ userEmail }) {
 
   async function saveModel() {
     const md = modelModal;
-    if (!md.data.name.trim()) { alert('El nombre es obligatorio.'); return; }
+    if (!md.data.name.trim()) { alert('El Listing Title es obligatorio.'); return; }
     setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -233,6 +235,7 @@ export default function AppShell({ userEmail }) {
         contract: md.data.contract, agency: md.data.agency, start_when: md.data.start_when,
         social: md.data.social, tiktok: md.data.tiktok, blocked: md.data.blocked,
         verified: md.data.verified, fee: md.data.fee, notes: md.data.notes, photos,
+        real_name: md.data.real_name, whatsapp: md.data.whatsapp, instagram: md.data.instagram,
         price_listing: pl, price_final: pf, commission: comm, market_cut: mcut,
       };
       if (md.editingId) {
@@ -792,7 +795,7 @@ function ModelModal({ md, setMd, categories, sellers, buyers, onSave, onClose, s
         <div className="mbody" style={{ maxHeight: '72vh', overflowY: 'auto' }}>
           <div className="fg">
             <div className="fseclbl">Basic Info</div>
-            <Field label="Name / Alias *"><input className="finput" value={d.name} onChange={(e) => set('name', e.target.value)} placeholder="Model name" /></Field>
+            <Field label="Listing Title *"><input className="finput" value={d.name} onChange={(e) => set('name', e.target.value)} placeholder="ej: trans model, latina petite..." /></Field>
             <Field label="Status"><select className="fsel2" value={d.status} onChange={(e) => set('status', e.target.value)}><option value="available">Available</option><option value="reserved">Reserved</option><option value="sold">Sold</option></select></Field>
             <Field label="Category"><select className="fsel2" value={d.category} onChange={(e) => set('category', e.target.value)}><option value="">— Select —</option>{categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}</select></Field>
             <Field label="Priority"><select className="fsel2" value={d.priority} onChange={(e) => set('priority', e.target.value)}><option value="normal">Normal</option><option value="hot">Hot</option></select></Field>
@@ -825,6 +828,12 @@ function ModelModal({ md, setMd, categories, sellers, buyers, onSave, onClose, s
             <Field label="Countries Blocked"><input className="finput" value={d.blocked} onChange={(e) => set('blocked', e.target.value)} placeholder="None / US, UK" /></Field>
             <Field label="OF & Skrill Verified"><select className="fsel2" value={d.verified} onChange={(e) => set('verified', e.target.value)}><option>No</option><option>Yes</option><option>Yes (delivered verified)</option></select></Field>
             <Field label="Agency Fee"><input className="finput" value={d.fee} onChange={(e) => set('fee', e.target.value)} placeholder="$500" /></Field>
+
+            <hr className="fdivider" />
+            <div className="fseclbl" style={{ color: '#5DADE2' }}>🔒 Private — CRM (no se publica)</div>
+            <Field label="Nombre real"><input className="finput" value={d.real_name} onChange={(e) => set('real_name', e.target.value)} placeholder="Nombre real" /></Field>
+            <Field label="WhatsApp"><input className="finput" value={d.whatsapp} onChange={(e) => set('whatsapp', e.target.value)} placeholder="+57 300 000 0000" /></Field>
+            <Field label="Instagram" full><input className="finput" value={d.instagram} onChange={(e) => set('instagram', e.target.value)} placeholder="@usuario" /></Field>
 
             <hr className="fdivider" />
             <div className="fseclbl">Internal Notes</div>
@@ -924,6 +933,14 @@ function DetailModal({ m, tab, setTab, contacts, onEdit, onDelete, onTg, onClose
                   {m.priority === 'hot' && <span className="tag tag-gold">HOT</span>}
                 </div>
                 {rows.map((r) => <div className="drow" key={r[0]}><span className="drow-lbl">{r[0]}</span><span className="drow-val">{r[1]}</span></div>)}
+                {(m.real_name || m.whatsapp || m.instagram) && (
+                  <div className="dnotes" style={{ borderColor: 'rgba(41,128,185,0.35)', background: 'rgba(41,128,185,0.06)' }}>
+                    <strong style={{ color: '#5DADE2', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase' }}>🔒 Private — CRM</strong>
+                    {m.real_name && <div className="drow" style={{ borderColor: 'rgba(41,128,185,0.15)' }}><span className="drow-lbl">Nombre real</span><span className="drow-val">{m.real_name}</span></div>}
+                    {m.whatsapp && <div className="drow" style={{ borderColor: 'rgba(41,128,185,0.15)' }}><span className="drow-lbl">WhatsApp</span><span className="drow-val">{m.whatsapp}</span></div>}
+                    {m.instagram && <div className="drow" style={{ border: 'none', paddingBottom: 0 }}><span className="drow-lbl">Instagram</span><span className="drow-val">{m.instagram}</span></div>}
+                  </div>
+                )}
                 {m.notes && <div className="dnotes"><strong style={{ color: 'var(--gold-dim)', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase' }}>Internal Notes</strong><br /><br />{m.notes}</div>}
               </div>
             </div>
