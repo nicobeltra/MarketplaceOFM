@@ -293,3 +293,98 @@ input, select, textarea, button { font-family:inherit; }
   .dgrid { grid-template-columns:1fr; }
   .dphoto { width:100%; height:auto; aspect-ratio:3/4; }
 }
+
+/* ============================================================
+   MOBILE — responsive
+   ============================================================ */
+.mobile-bar { display:none; }
+.nav-scrim { display:none; }
+
+@media (max-width: 768px) {
+  .app { flex-direction:column; height:100dvh; }
+
+  /* Mobile top bar with hamburger */
+  .mobile-bar {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 16px; background:var(--surface); border-bottom:1px solid var(--border);
+    position:sticky; top:0; z-index:600; flex-shrink:0;
+  }
+  .hamburger { width:34px; height:34px; background:var(--surface3); border:1px solid var(--border); border-radius:var(--r); color:var(--gold); display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .hamburger svg { width:18px; height:18px; }
+  .mobile-logo { font-family:var(--fd); font-size:22px; font-weight:600; color:var(--gold); letter-spacing:3px; }
+
+  /* Sidebar becomes a slide-in drawer */
+  .sidebar {
+    position:fixed; top:0; left:0; bottom:0; z-index:700;
+    width:80%; max-width:300px; min-width:0;
+    transform:translateX(-100%); transition:transform .25s ease;
+    box-shadow:8px 0 40px rgba(0,0,0,.6);
+  }
+  .sidebar.open { transform:translateX(0); }
+  .nav-scrim { display:block; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:650; }
+  .ni { padding:13px 20px; font-size:14px; }
+  .ni svg { width:17px; height:17px; }
+
+  .main { flex:1; }
+
+  /* Topbars inside pages */
+  .topbar { padding:14px 16px; flex-wrap:wrap; gap:10px; }
+  .topbar-title { font-size:18px; }
+  .tb-actions { width:100%; }
+  .tb-actions .btn { width:100%; justify-content:center; }
+  .tb-actions.split-row { flex-direction:column; }
+  .page-pad { padding:16px; }
+
+  /* Metrics: 2 cols on mobile */
+  .metrics { grid-template-columns:repeat(2,1fr); gap:10px; }
+  .mc { padding:14px; }
+  .mc-val { font-size:26px; }
+
+  /* Cards full width-ish */
+  .cgrid { grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; }
+  .cgrid2 { grid-template-columns:1fr; }
+  .catgrid { grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); }
+  .sgrid { grid-template-columns:1fr; }
+
+  /* Filters stack */
+  .filters { gap:8px; }
+  .finp, .fsel { width:100%; min-width:0; }
+  .vtoggle { margin-left:0; width:100%; justify-content:flex-end; }
+
+  /* Tables scroll horizontally */
+  .lview, .stable-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .ltable, .stable { min-width:620px; }
+
+  /* Modals: full screen-ish */
+  .overlay { padding:0; align-items:stretch; }
+  .modal { max-width:100% !important; border-radius:0; min-height:100dvh; border:none; }
+  .mhead { padding:16px; position:sticky; top:0; background:var(--surface2); z-index:5; }
+  .mtitle { font-size:17px; }
+  .mbody { padding:16px; max-height:none !important; }
+  .mfoot { padding:14px 16px; position:sticky; bottom:0; background:var(--surface2); flex-wrap:wrap; }
+  .mfoot .btn { flex:1; justify-content:center; min-width:120px; }
+
+  /* Form single column */
+  .fg { grid-template-columns:1fr; gap:12px; }
+
+  /* Detail modal stacks */
+  .dgrid { grid-template-columns:1fr; gap:16px; }
+  .dphoto { width:100%; height:auto; aspect-ratio:4/5; max-height:340px; }
+  .mhead .btn span, .mhead .btn { font-size:9px; }
+  .mhead .btn { padding:6px 8px; }
+  .mhead > div:last-child { gap:5px !important; flex-wrap:wrap; justify-content:flex-end; }
+
+  /* Alerts items stack */
+  .aitem { flex-wrap:wrap; }
+  .aitem .btn { flex:1; }
+
+  /* Login */
+  .login-card { padding:28px 22px; }
+
+  /* Toast spans width */
+  .toast { left:16px; right:16px; bottom:16px; max-width:none; }
+}
+
+@media (min-width: 769px) {
+  .mobile-bar { display:none !important; }
+}

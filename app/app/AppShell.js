@@ -8,8 +8,13 @@ import { createClient } from '@/lib/supabase/client';
 const fmtMoney = (n) => '$' + Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
 const fmtDate = (d) => new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 const daysSince = (d) => Math.floor((Date.now() - new Date(d)) / 86400000);
-const code = (seq) => '#' + String(seq).padStart(5, '0');
 const initials = (name) => name.split(' ').map((w) => w[0]).join('').substring(0, 2).toUpperCase();
+const SKU_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // sin caracteres ambiguos (0,O,1,I,L)
+function genSku() {
+  let s = '';
+  for (let i = 0; i < 5; i++) s += SKU_CHARS[Math.floor(Math.random() * SKU_CHARS.length)];
+  return 'AMI-' + s;
+}
 
 const EMPTY_MODEL = {
   name: '', status: 'available', category: '', priority: 'normal', seller_id: '', buyer_id: '',
@@ -19,25 +24,26 @@ const EMPTY_MODEL = {
   price_listing: '', price_final: '', commission: '',
 };
 
-function buildListing(m) {
-  return `Model ${m.seq ? code(m.seq) : '(nuevo)'}
+function buildListing(m, emoji = '🌴') {
+  const e = emoji || '🌴';
+  return `Model ${m.sku || '(nuevo)'}
 
 ${(m.name || '').toUpperCase()}
 
-🌴 Age: ${m.age || '—'}
-🌴 Origin: ${m.origin || '—'}
-🌴 Smartphone: ${m.phone || '—'}
-🌴 % or salary: ${m.pct || '—'}
-🌴 Time per day: ${m.time_per_day || '—'}
-🌴 English skills (1–10): ${m.english || '—'}
-🌴 Content: ${m.content || '—'}
-🌴 Contract signed: ${m.contract || '—'}
-🌴 Working with an agency currently: ${m.agency || '—'}
-🌴 When can she start: ${m.start_when || '—'}
-🌴 Social media set up: ${m.social || '—'}
-🌴 Comfortable with TikTok: ${m.tiktok || '—'}
-🌴 Any countries blocked?: ${m.blocked || '—'}
-🌴 OF and Skrill verified: ${m.verified || '—'}
+${e} Age: ${m.age || '—'}
+${e} Origin: ${m.origin || '—'}
+${e} Smartphone: ${m.phone || '—'}
+${e} % or salary: ${m.pct || '—'}
+${e} Time per day: ${m.time_per_day || '—'}
+${e} English skills (1–10): ${m.english || '—'}
+${e} Content: ${m.content || '—'}
+${e} Contract signed: ${m.contract || '—'}
+${e} Working with an agency currently: ${m.agency || '—'}
+${e} When can she start: ${m.start_when || '—'}
+${e} Social media set up: ${m.social || '—'}
+${e} Comfortable with TikTok: ${m.tiktok || '—'}
+${e} Any countries blocked?: ${m.blocked || '—'}
+${e} OF and Skrill verified: ${m.verified || '—'}
 
 💵 Agency Fee: ${m.fee || '—'}`.trim();
 }
@@ -53,6 +59,7 @@ const ICONS = {
   buyers: '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>',
   leads: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
   search: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
 };
 const TG_PATH = 'M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.868 13.99l-2.96-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.28.569z';
 
@@ -62,6 +69,7 @@ export default function AppShell({ userEmail }) {
 
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState('dashboard');
+  const [navOpen, setNavOpen] = useState(false);
   const [view, setView] = useState('cards');
 
   const [models, setModels] = useState([]);
@@ -69,7 +77,7 @@ export default function AppShell({ userEmail }) {
   const [categories, setCategories] = useState([]);
   const [searches, setSearches] = useState([]);
   const [alerts, setAlerts] = useState([]);
-  const [settings, setSettings] = useState({ telegram_token: '', telegram_chat_id: '' });
+  const [settings, setSettings] = useState({ telegram_token: '', telegram_chat_id: '', listing_emoji: '🌴' });
 
   const [toast, setToast] = useState(null);
   const toastRef = useRef(null);
@@ -164,7 +172,7 @@ export default function AppShell({ userEmail }) {
         photos: m.photos || [],
         price_listing: m.price_listing ?? '', price_final: m.price_final ?? '', commission: m.commission ?? '',
       },
-      editingId: m.id, seq: m.seq, newFiles: [],
+      editingId: m.id, seq: m.seq, sku: m.sku, newFiles: [],
     });
   }
 
@@ -216,11 +224,16 @@ export default function AppShell({ userEmail }) {
         setModels((p) => p.map((x) => (x.id === data.id ? data : x)));
         showToast('Actualizado', `${data.name} actualizada.`, 'success');
       } else {
-        const { data, error } = await supabase.from('models').insert(payload).select().single();
+        // generar SKU único
+        const existing = new Set(models.map((x) => x.sku).filter(Boolean));
+        let sku = genSku();
+        let guard = 0;
+        while (existing.has(sku) && guard < 20) { sku = genSku(); guard++; }
+        const { data, error } = await supabase.from('models').insert({ ...payload, sku }).select().single();
         if (error) throw error;
         await logActivity(data.id, 'Perfil creado', '');
         setModels((p) => [...p, data]);
-        showToast('Creado', `Perfil agregado: ${data.name}`, 'success');
+        showToast('Creado', `Perfil agregado: ${data.sku}`, 'success');
       }
       setModelModal(null);
     } catch (e) {
@@ -232,7 +245,7 @@ export default function AppShell({ userEmail }) {
 
   async function deleteModel(id) {
     const m = models.find((x) => x.id === id);
-    if (!confirm(`¿Eliminar el perfil ${code(m.seq)} — ${m.name}? No se puede deshacer.`)) return;
+    if (!confirm(`¿Eliminar el perfil ${m.sku} — ${m.name}? No se puede deshacer.`)) return;
     await supabase.from('models').delete().eq('id', id);
     setModels((p) => p.filter((x) => x.id !== id));
     setDetailId(null);
@@ -321,6 +334,15 @@ export default function AppShell({ userEmail }) {
     setAlerts((p) => p.filter((a) => a.id !== id));
   }
 
+  // ============ SETTINGS ============
+  async function saveSettings(patch) {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data, error } = await supabase.from('settings').upsert({ user_id: user.id, ...patch, updated_at: new Date().toISOString() }).select().single();
+    if (error) { showToast('Error', error.message, 'error'); return; }
+    setSettings(data);
+    showToast('Guardado', 'Configuración guardada.', 'success');
+  }
+
   // ============ TELEGRAM ============
   async function openTg(m) {
     setTgModal({ model: m, token: settings.telegram_token || '', chatId: settings.telegram_chat_id || '', sending: false });
@@ -336,7 +358,7 @@ export default function AppShell({ userEmail }) {
     await saveTgConfig(token, chatId);
     const m = tgModal.model;
     setTgModal((t) => ({ ...t, sending: true }));
-    const txt = buildListing(m);
+    const txt = buildListing(m, settings.listing_emoji || '🌴');
     const base = `https://api.telegram.org/bot${token}`;
     const photos = m.photos || [];
     try {
@@ -372,7 +394,7 @@ export default function AppShell({ userEmail }) {
 
   const filteredModels = models.filter((m) => {
     const s = fSearch.toLowerCase();
-    return (!s || m.name.toLowerCase().includes(s) || code(m.seq).toLowerCase().includes(s) || (m.category || '').toLowerCase().includes(s))
+    return (!s || m.name.toLowerCase().includes(s) || (m.sku||'').toLowerCase().includes(s) || (m.category || '').toLowerCase().includes(s))
       && (!fStatus || m.status === fStatus) && (!fCat || m.category === fCat) && (!fPrio || m.priority === fPrio);
   });
 
@@ -398,18 +420,28 @@ export default function AppShell({ userEmail }) {
     { sec: 'Pipeline', items: [
       { id: 'searches', label: 'Active Searches', icon: 'search', badge: searches.filter((s) => s.status === 'active').length, badgeColor: 'orange' },
     ] },
+    { sec: 'System', items: [
+      { id: 'settings', label: 'Settings', icon: 'gear' },
+    ] },
   ];
 
   return (
     <div className="app">
+      {/* MOBILE TOP BAR */}
+      <div className="mobile-bar">
+        <button className="hamburger" onClick={() => setNavOpen(true)} aria-label="Menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+        <div className="mobile-logo">OFM</div>
+        <div style={{ width: 32 }} />
+      </div>
+      {navOpen && <div className="nav-scrim" onClick={() => setNavOpen(false)} />}
       {/* SIDEBAR */}
-      <div className="sidebar">
+      <div className={`sidebar ${navOpen ? 'open' : ''}`}>
         <div className="logo"><h1>OFM</h1><span>Marketplace Command</span></div>
         {NAV.map((group) => (
           <div className="sb-sec" key={group.sec}>
             <div className="sb-lbl">{group.sec}</div>
             {group.items.map((it) => (
-              <button key={it.id} className={`ni ${page === it.id ? 'active' : ''}`} onClick={() => setPage(it.id)}>
+              <button key={it.id} className={`ni ${page === it.id ? 'active' : ''}`} onClick={() => { setPage(it.id); setNavOpen(false); }}>
                 <Icon d={ICONS[it.icon]} />
                 {it.label}
                 {it.badge !== undefined && <span className={`badge ${it.badgeColor || ''}`}>{it.badge}</span>}
@@ -440,7 +472,7 @@ export default function AppShell({ userEmail }) {
               <div className="gold-line" />
               <div style={{ marginBottom: 18 }}><div className="sec-title">Sales Breakdown</div><div className="sec-sub">All closed deals</div></div>
               {soldModels.length === 0 ? <Empty text="No sales yet." /> : (
-                <table className="stable">
+                <div className="stable-wrap"><table className="stable">
                   <thead><tr><th>ID</th><th>Model</th><th>Listing</th><th>Final</th><th>Comm %</th><th>Market Earns</th><th>Seller Gets</th></tr></thead>
                   <tbody>
                     {soldModels.map((m) => {
@@ -448,7 +480,7 @@ export default function AppShell({ userEmail }) {
                       const sr = (Number(m.price_final) || 0) - (Number(m.market_cut) || 0);
                       return (
                         <tr key={m.id} onClick={() => { setDetailId(m.id); setDetailTab('finance'); }}>
-                          <td style={{ color: 'var(--gold-dim)', fontSize: 10, letterSpacing: 2 }}>{code(m.seq)}</td>
+                          <td style={{ color: 'var(--gold-dim)', fontSize: 10, letterSpacing: 2 }}>{m.sku}</td>
                           <td>{m.name}{seller && <><br /><span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{seller.name}</span></>}</td>
                           <td>{m.price_listing ? fmtMoney(m.price_listing) : '—'}</td>
                           <td>{m.price_final ? fmtMoney(m.price_final) : '—'}</td>
@@ -467,7 +499,7 @@ export default function AppShell({ userEmail }) {
                       <td style={{ fontWeight: 700 }}>{fmtMoney(totalBilled - totalCommission)}</td>
                     </tr>
                   </tfoot>
-                </table>
+                </table></div>
               )}
             </div>
           </>
@@ -498,7 +530,7 @@ export default function AppShell({ userEmail }) {
                       <div key={m.id} className={`mcard ${m.priority === 'hot' ? 'hot' : ''}`} onClick={() => { setDetailId(m.id); setDetailTab('info'); }}>
                         <div className="cimg">{photo ? <img src={photo} alt="" /> : 'NO PHOTO'}</div>
                         <div className="cbody">
-                          <div className="cid">{code(m.seq)}</div>
+                          <div className="cid">{m.sku}</div>
                           <div className="cname">{m.name}</div>
                           <div className="cmeta">
                             <span className={`tag tag-${sc[m.status]}`}><span className={`sdot ${m.status}`} />{m.status}</span>
@@ -512,7 +544,7 @@ export default function AppShell({ userEmail }) {
                   })}
                 </div>
               ) : (
-                <table className="ltable">
+                <div className="stable-wrap"><table className="ltable">
                   <thead><tr><th>ID</th><th>Name</th><th>Status</th><th>Category</th><th>Seller</th><th>Priority</th><th>Days</th></tr></thead>
                   <tbody>
                     {filteredModels.map((m) => {
@@ -520,7 +552,7 @@ export default function AppShell({ userEmail }) {
                       const seller = contacts.find((c) => c.id === m.seller_id);
                       return (
                         <tr key={m.id} onClick={() => { setDetailId(m.id); setDetailTab('info'); }}>
-                          <td style={{ color: 'var(--gold-dim)', fontSize: 10, letterSpacing: 2 }}>{code(m.seq)}</td>
+                          <td style={{ color: 'var(--gold-dim)', fontSize: 10, letterSpacing: 2 }}>{m.sku}</td>
                           <td>{m.name}</td><td><span className={`tag tag-${sc[m.status]}`}>{m.status}</span></td>
                           <td>{m.category || '—'}</td><td>{seller ? seller.name : '—'}</td>
                           <td>{m.priority === 'hot' ? <span className="tag tag-gold">HOT</span> : 'Normal'}</td>
@@ -529,7 +561,7 @@ export default function AppShell({ userEmail }) {
                       );
                     })}
                   </tbody>
-                </table>
+                </table></div>
               )}
             </div>
           </>
@@ -552,7 +584,7 @@ export default function AppShell({ userEmail }) {
                         <div className="aitem" key={a.id}>
                           <div style={{ flex: 1 }}>
                             <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 2 }}>{a.title}</div>
-                            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{m && `${code(m.seq)} — ${m.name} · `}{a.due_date && `Vence: ${fmtDate(a.due_date)}`}{a.notes && ` · ${a.notes}`}</div>
+                            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{m && `${m.sku} — ${m.name} · `}{a.due_date && `Vence: ${fmtDate(a.due_date)}`}{a.notes && ` · ${a.notes}`}</div>
                           </div>
                           <span className={`tag ${a.priority === 'high' ? 'tag-red' : 'tag-gold'}`}>{a.priority}</span>
                           {overdue && <span className="tag tag-red">Overdue</span>}
@@ -575,7 +607,7 @@ export default function AppShell({ userEmail }) {
                       return (
                         <div className="aitem" key={m.id}>
                           <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 2 }}>{code(m.seq)} — {m.name}</div>
+                            <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 2 }}>{m.sku} — {m.name}</div>
                             <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Seller: {seller ? `${seller.name} · ${seller.telegram || 'sin handle'}` : 'Sin seller'} · Listado {fmtDate(m.created_at)}</div>
                           </div>
                           <span className="tag tag-red">{daysSince(m.created_at)}d listed</span>
@@ -641,7 +673,7 @@ export default function AppShell({ userEmail }) {
                             {c.notes && <div className="cmeta2">{c.notes}</div>}
                             {c.looking_for && <div className="cmeta2" style={{ marginTop: 4, color: 'var(--gold-dim)' }}>Busca: {c.looking_for}</div>}
                             {c.categories && <div className="cmeta2" style={{ marginTop: 4 }}>Categorías: {c.categories}</div>}
-                            {cms.length > 0 && <div className="smodels">{cms.map((m) => <span className="smtag" key={m.id}>{code(m.seq)}</span>)}</div>}
+                            {cms.length > 0 && <div className="smodels">{cms.map((m) => <span className="smtag" key={m.id}>{m.sku}</span>)}</div>}
                           </div>
                           <div className="ccard-actions">
                             <button className="icon-btn" onClick={() => openEditContact(c)} title="Editar">✎</button>
@@ -688,15 +720,18 @@ export default function AppShell({ userEmail }) {
             </div>
           </>
         )}
+
+        {/* ===== SETTINGS ===== */}
+        {page === 'settings' && <SettingsPage settings={settings} onSave={saveSettings} />}
       </div>
 
       {/* ============ MODALS ============ */}
-      {modelModal && <ModelModal md={modelModal} setMd={setModelModal} categories={categories} sellers={sellers} buyers={buyers} onSave={saveModel} onClose={() => setModelModal(null)} saving={saving} />}
-      {detailModel && <DetailModal m={detailModel} tab={detailTab} setTab={setDetailTab} contacts={contacts} onEdit={() => openEditModel(detailModel)} onDelete={() => deleteModel(detailModel.id)} onTg={() => openTg(detailModel)} onClose={() => setDetailId(null)} showToast={showToast} />}
+      {modelModal && <ModelModal md={modelModal} setMd={setModelModal} categories={categories} sellers={sellers} buyers={buyers} onSave={saveModel} onClose={() => setModelModal(null)} saving={saving} emoji={settings.listing_emoji || '🌴'} />}
+      {detailModel && <DetailModal m={detailModel} tab={detailTab} setTab={setDetailTab} contacts={contacts} onEdit={() => openEditModel(detailModel)} onDelete={() => deleteModel(detailModel.id)} onTg={() => openTg(detailModel)} onClose={() => setDetailId(null)} showToast={showToast} emoji={settings.listing_emoji || '🌴'} />}
       {contactModal && <ContactModal cm={contactModal} setCm={setContactModal} onSave={saveContact} onClose={() => setContactModal(null)} saving={saving} />}
       {searchModal && <SearchModal sm={searchModal} setSm={setSearchModal} buyers={buyers} onSave={saveSearch} onClose={() => setSearchModal(null)} saving={saving} />}
       {alertModal && <AlertModal am={alertModal} setAm={setAlertModal} models={models} onSave={saveAlert} onClose={() => setAlertModal(null)} saving={saving} />}
-      {tgModal && <TgModal tg={tgModal} setTg={setTgModal} onSend={sendToTelegram} onSaveConfig={saveTgConfig} onClose={() => setTgModal(null)} />}
+      {tgModal && <TgModal tg={tgModal} setTg={setTgModal} onSend={sendToTelegram} onSaveConfig={saveTgConfig} onClose={() => setTgModal(null)} emoji={settings.listing_emoji || '🌴'} />}
 
       {toast && <div className={`toast ${toast.type}`}><div className="toast-title">{toast.title}</div><div className="toast-msg">{toast.msg}</div></div>}
     </div>
@@ -715,7 +750,7 @@ function Field({ label, children, full }) {
   return (<div className={`fgrp ${full ? 'full' : ''}`}><label className="flbl">{label}</label>{children}</div>);
 }
 
-function ModelModal({ md, setMd, categories, sellers, buyers, onSave, onClose, saving }) {
+function ModelModal({ md, setMd, categories, sellers, buyers, onSave, onClose, saving, emoji }) {
   const d = md.data;
   const set = (k, v) => setMd((p) => ({ ...p, data: { ...p.data, [k]: v } }));
   const fileRef = useRef(null);
@@ -734,7 +769,7 @@ function ModelModal({ md, setMd, categories, sellers, buyers, onSave, onClose, s
   return (
     <div className="overlay open" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ maxWidth: 780 }}>
-        <div className="mhead"><div className="mtitle">{md.editingId ? `Editar — ${code(md.seq)}` : 'New Model Profile'}</div><button className="mclose" onClick={onClose}>✕</button></div>
+        <div className="mhead"><div className="mtitle">{md.editingId ? `Editar — ${md.sku}` : 'New Model Profile'}</div><button className="mclose" onClick={onClose}>✕</button></div>
         <div className="mbody" style={{ maxHeight: '72vh', overflowY: 'auto' }}>
           <div className="fg">
             <div className="fseclbl">Basic Info</div>
@@ -795,7 +830,7 @@ function ModelModal({ md, setMd, categories, sellers, buyers, onSave, onClose, s
 
           <div style={{ marginTop: 24 }}>
             <div className="lp-lbl">Listing Preview</div>
-            <div className="lp-box">{buildListing({ ...d, seq: md.seq })}</div>
+            <div className="lp-box">{buildListing({ ...d, sku: md.sku }, emoji)}</div>
           </div>
         </div>
         <div className="mfoot">
@@ -807,7 +842,7 @@ function ModelModal({ md, setMd, categories, sellers, buyers, onSave, onClose, s
   );
 }
 
-function DetailModal({ m, tab, setTab, contacts, onEdit, onDelete, onTg, onClose, showToast }) {
+function DetailModal({ m, tab, setTab, contacts, onEdit, onDelete, onTg, onClose, showToast, emoji }) {
   const seller = contacts.find((c) => c.id === m.seller_id);
   const buyer = contacts.find((c) => c.id === m.buyer_id);
   const sc = { available: 'green', sold: 'red', reserved: 'orange' };
@@ -835,14 +870,14 @@ function DetailModal({ m, tab, setTab, contacts, onEdit, onDelete, onTg, onClose
     ['Agency Fee', m.fee],
   ].filter((r) => r[1]);
 
-  function copyListing() { navigator.clipboard.writeText(buildListing(m)).then(() => showToast('Copiado', 'Listing copiado.')); }
+  function copyListing() { navigator.clipboard.writeText(buildListing(m, emoji)).then(() => showToast('Copiado', 'Listing copiado.')); }
   const sr = (Number(m.price_final) || 0) - (Number(m.market_cut) || 0);
 
   return (
     <div className="overlay open" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ maxWidth: 840 }}>
         <div className="mhead">
-          <div><div className="did">{code(m.seq)}</div><div className="mtitle">{m.name}</div></div>
+          <div><div className="did">{m.sku}</div><div className="mtitle">{m.name}</div></div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-tg btn-sm" onClick={onTg}><svg viewBox="0 0 24 24" fill="currentColor" style={{ width: 13, height: 13 }}><path d={TG_PATH} /></svg>Publish to Telegram</button>
             <button className="btn btn-outline btn-sm" onClick={onEdit}>Edit</button>
@@ -875,7 +910,7 @@ function DetailModal({ m, tab, setTab, contacts, onEdit, onDelete, onTg, onClose
             </div>
           )}
 
-          {tab === 'listing' && (<><div className="lp-lbl">Ready to share</div><div className="lp-box">{buildListing(m)}</div><button className="btn btn-outline btn-sm" style={{ marginTop: 12, width: '100%' }} onClick={copyListing}>Copy Listing</button></>)}
+          {tab === 'listing' && (<><div className="lp-lbl">Ready to share</div><div className="lp-box">{buildListing(m, emoji)}</div><button className="btn btn-outline btn-sm" style={{ marginTop: 12, width: '100%' }} onClick={copyListing}>Copy Listing</button></>)}
 
           {tab === 'finance' && (
             (m.status !== 'sold' || !m.price_final) ? <Empty text="Sin datos financieros. Marcala como vendida y completá los detalles." /> : (
@@ -953,7 +988,7 @@ function AlertModal({ am, setAm, models, onSave, onClose, saving }) {
         <div className="mbody">
           <div className="fg">
             <Field label="Title *" full><input className="finput" value={am.title} onChange={(e) => set('title', e.target.value)} placeholder="Seguir con el seller sobre precio" /></Field>
-            <Field label="Linked Model (optional)" full><select className="fsel2" value={am.model_id} onChange={(e) => set('model_id', e.target.value)}><option value="">— Sin modelo —</option>{models.map((m) => <option key={m.id} value={m.id}>{code(m.seq)} — {m.name}</option>)}</select></Field>
+            <Field label="Linked Model (optional)" full><select className="fsel2" value={am.model_id} onChange={(e) => set('model_id', e.target.value)}><option value="">— Sin modelo —</option>{models.map((m) => <option key={m.id} value={m.id}>{m.sku} — {m.name}</option>)}</select></Field>
             <Field label="Notes" full><textarea className="ftxt" value={am.notes} onChange={(e) => set('notes', e.target.value)} placeholder="Detalles..." /></Field>
             <Field label="Due Date"><input className="finput" type="date" value={am.due_date} onChange={(e) => set('due_date', e.target.value)} /></Field>
             <Field label="Priority"><select className="fsel2" value={am.priority} onChange={(e) => set('priority', e.target.value)}><option value="normal">Normal</option><option value="high">High</option></select></Field>
@@ -965,7 +1000,7 @@ function AlertModal({ am, setAm, models, onSave, onClose, saving }) {
   );
 }
 
-function TgModal({ tg, setTg, onSend, onSaveConfig, onClose }) {
+function TgModal({ tg, setTg, onSend, onSaveConfig, onClose, emoji }) {
   const [token, setToken] = useState(tg.token);
   const [chatId, setChatId] = useState(tg.chatId);
   const m = tg.model;
@@ -988,7 +1023,7 @@ function TgModal({ tg, setTg, onSend, onSaveConfig, onClose }) {
           <div style={{ marginTop: 20 }}>
             <div className="lp-lbl">Message Preview</div>
             <div style={{ fontSize: 11, color: 'var(--gold)', marginBottom: 8, letterSpacing: 1 }}>{info}</div>
-            <div className="lp-box" style={{ fontSize: 11, lineHeight: 1.8 }}>{buildListing(m)}</div>
+            <div className="lp-box" style={{ fontSize: 11, lineHeight: 1.8 }}>{buildListing(m, emoji)}</div>
           </div>
         </div>
         <div className="mfoot">
@@ -1001,5 +1036,43 @@ function TgModal({ tg, setTg, onSend, onSaveConfig, onClose }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function SettingsPage({ settings, onSave }) {
+  const [emoji, setEmoji] = useState(settings.listing_emoji || '🌴');
+  const [token, setToken] = useState(settings.telegram_token || '');
+  const [chatId, setChatId] = useState(settings.telegram_chat_id || '');
+  const PRESETS = ['🌴', '💎', '🔥', '⭐', '🌸', '👑', '🍑', '💋', '🦋', '✨'];
+  const sample = buildListing({ sku: 'AMI-K9X2M', name: 'sample model', age: '22', origin: 'Colombia', phone: 'iPhone 13', pct: '70/30', time_per_day: '4h', english: '7', content: 'Solo', contract: 'Yes', agency: 'No', start_when: 'ASAP', social: 'Yes', tiktok: 'Yes', blocked: 'None', verified: 'Yes', fee: '$500' }, emoji);
+  return (
+    <>
+      <div className="topbar"><div className="topbar-title">Settings</div></div>
+      <div className="page-pad" style={{ maxWidth: 640 }}>
+        <div style={{ marginBottom: 8 }}><div className="sec-title" style={{ fontSize: 16 }}>Emoji del listing</div><div className="sec-sub">El emoji que precede cada línea</div></div>
+        <div className="fcard" style={{ marginBottom: 28 }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
+            <input className="finput" style={{ width: 70, fontSize: 22, textAlign: 'center' }} value={emoji} onChange={(e) => setEmoji(e.target.value)} maxLength={4} />
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {PRESETS.map((p) => (
+                <button key={p} onClick={() => setEmoji(p)} style={{ width: 38, height: 38, fontSize: 18, background: emoji === p ? 'var(--gold-glow)' : 'var(--surface3)', border: '1px solid ' + (emoji === p ? 'var(--gold)' : 'var(--border)'), borderRadius: 6, cursor: 'pointer' }}>{p}</button>
+              ))}
+            </div>
+          </div>
+          <div className="lp-lbl">Preview</div>
+          <div className="lp-box" style={{ fontSize: 11, lineHeight: 1.7, maxHeight: 260, overflowY: 'auto' }}>{sample}</div>
+          <button className="btn btn-gold" style={{ marginTop: 14 }} onClick={() => onSave({ listing_emoji: emoji || '🌴' })}>Guardar emoji</button>
+        </div>
+
+        <div style={{ marginBottom: 8 }}><div className="sec-title" style={{ fontSize: 16 }}>Telegram</div><div className="sec-sub">Bot para publicar listings</div></div>
+        <div className="fcard">
+          <div className="fg">
+            <Field label="Bot Token" full><input className="finput" value={token} onChange={(e) => setToken(e.target.value)} placeholder="123456789:ABCdef..." /></Field>
+            <Field label="Chat ID" full><input className="finput" value={chatId} onChange={(e) => setChatId(e.target.value)} placeholder="-1001234567890 o @canal" /></Field>
+          </div>
+          <button className="btn btn-gold" style={{ marginTop: 14 }} onClick={() => onSave({ telegram_token: token.trim(), telegram_chat_id: chatId.trim() })}>Guardar Telegram</button>
+        </div>
+      </div>
+    </>
   );
 }
