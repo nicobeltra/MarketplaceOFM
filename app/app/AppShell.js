@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { buildListing } from '@/lib/listing';
 
 // ============ HELPERS ============
 const fmtMoney = (n) => '$' + Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -24,30 +25,6 @@ const EMPTY_MODEL = {
   real_name: '', whatsapp: '', instagram: '',
   price_listing: '', price_final: '', commission: '',
 };
-
-function buildListing(m, emoji = '🌴') {
-  const e = emoji || '🌴';
-  return `Model ${m.sku || '(nuevo)'}
-
-${(m.name || '').toUpperCase()}
-
-${e} Age: ${m.age || '—'}
-${e} Origin: ${m.origin || '—'}
-${e} Smartphone: ${m.phone || '—'}
-${e} % or salary: ${m.pct || '—'}
-${e} Time per day: ${m.time_per_day || '—'}
-${e} English skills (1–10): ${m.english || '—'}
-${e} Content: ${m.content || '—'}
-${e} Contract signed: ${m.contract || '—'}
-${e} Working with an agency currently: ${m.agency || '—'}
-${e} When can she start: ${m.start_when || '—'}
-${e} Social media set up: ${m.social || '—'}
-${e} Comfortable with TikTok: ${m.tiktok || '—'}
-${e} Any countries blocked?: ${m.blocked || '—'}
-${e} OF and Skrill verified: ${m.verified || '—'}
-
-💵 Agency Fee: ${m.fee || '—'}`.trim();
-}
 
 // ============ ICONS ============
 const Icon = ({ d, ...p }) => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...p} dangerouslySetInnerHTML={{ __html: d }} />);
@@ -276,10 +253,10 @@ export default function AppShell({ userEmail }) {
 
   // ============ CONTACTS ============
   function openNewContact(type) {
-    setContactModal({ type, data: { name: '', telegram: '', notes: '', looking_for: '', categories: '' }, editingId: null });
+    setContactModal({ type, data: { name: '', telegram: '', notes: '', looking_for: '', categories: '', receives_listings: false }, editingId: null });
   }
   function openEditContact(c) {
-    setContactModal({ type: c.type, editingId: c.id, data: { name: c.name, telegram: c.telegram || '', notes: c.notes || '', looking_for: c.looking_for || '', categories: c.categories || '' } });
+    setContactModal({ type: c.type, editingId: c.id, data: { name: c.name, telegram: c.telegram || '', notes: c.notes || '', looking_for: c.looking_for || '', categories: c.categories || '', receives_listings: !!c.receives_listings } });
   }
   async function saveContact() {
     const cm = contactModal;
@@ -287,7 +264,7 @@ export default function AppShell({ userEmail }) {
     setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      const payload = { user_id: user.id, type: cm.type, name: cm.data.name.trim(), telegram: cm.data.telegram.trim(), notes: cm.data.notes.trim(), looking_for: cm.data.looking_for.trim(), categories: cm.data.categories.trim() };
+      const payload = { user_id: user.id, type: cm.type, name: cm.data.name.trim(), telegram: cm.data.telegram.trim(), notes: cm.data.notes.trim(), looking_for: cm.data.looking_for.trim(), categories: cm.data.categories.trim(), receives_listings: !!cm.data.receives_listings };
       if (cm.editingId) {
         const { data, error } = await supabase.from('contacts').update(payload).eq('id', cm.editingId).select().single();
         if (error) throw error;
@@ -365,9 +342,26 @@ export default function AppShell({ userEmail }) {
     showToast('Guardado', 'Configuración guardada.', 'success');
   }
 
+  // ============ DUEÑOS DE MARKETS ============
+  async function addOwner(name, telegram) {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data, error } = await supabase.from('contacts').insert({ user_id: user.id, type: 'buyer', name: name.trim(), telegram: telegram.trim(), receives_listings: true }).select().single();
+    if (error) { showToast('Error', error.message, 'error'); return null; }
+    setContacts((p) => [data, ...p]);
+    showToast('Agregado', `${data.name} agregado a dueños de markets.`, 'success');
+    return data;
+  }
+  async function setOwnerFlag(id, flag) {
+    const { data, error } = await supabase.from('contacts').update({ receives_listings: flag }).eq('id', id).select().single();
+    if (error) { showToast('Error', error.message, 'error'); return null; }
+    setContacts((p) => p.map((x) => (x.id === id ? data : x)));
+    return data;
+  }
+
   // ============ TELEGRAM ============
   async function openTg(m) {
-    setTgModal({ model: m, token: settings.telegram_token || '', chatId: settings.telegram_chat_id || '', sending: false });
+    const owners = contacts.filter((c) => c.receives_listings && c.telegram);
+    setTgModal({ model: m, token: settings.telegram_token || '', chatId: settings.telegram_chat_id || '', sending: false, progress: '', sendChannel: true, selected: owners.map((o) => o.id) });
   }
   async function saveTgConfig(token, chatId) {
     const { data: { user } } = await supabase.auth.getUser();
@@ -375,15 +369,17 @@ export default function AppShell({ userEmail }) {
     if (data) setSettings(data);
     showToast('Guardado', 'Configuración de Telegram guardada.', 'success');
   }
-  async function sendToTelegram(token, chatId) {
-    if (!token || !chatId) { showToast('Faltan datos', 'Completá token y chat ID.', 'error'); return; }
-    await saveTgConfig(token, chatId);
+  async function sendToTelegram(token, chatId, ownerIds = [], sendChannel = true, keepOpen = false) {
+    if (sendChannel && (!token || !chatId)) { showToast('Faltan datos', 'Completá token y chat ID para enviar a tu grupo.', 'error'); return; }
+    if (!sendChannel && ownerIds.length === 0) { showToast('Nada que enviar', 'Elegí tu grupo o al menos un dueño de market.', 'error'); return; }
+    if (sendChannel) await saveTgConfig(token, chatId);
     const m = tgModal.model;
     setTgModal((t) => ({ ...t, sending: true }));
     const txt = buildListing(m, settings.listing_emoji || '🌴');
     const base = `https://api.telegram.org/bot${token}`;
     const photos = m.photos || [];
     try {
+      if (sendChannel) {
       let res, j;
       if (photos.length === 0) {
         res = await fetch(`${base}/sendMessage`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: chatId, text: txt }) });
@@ -396,8 +392,26 @@ export default function AppShell({ userEmail }) {
       j = await res.json();
       if (!j.ok) throw new Error(j.description || 'Falló el envío');
       await logActivity(m.id, `Publicado en Telegram (${photos.length} foto${photos.length !== 1 ? 's' : ''})`, 'orange');
-      showToast('Publicado', `Listing enviado a Telegram para ${m.name}`, 'success');
-      setTgModal(null);
+      }
+
+      // Envío a dueños de markets desde tu cuenta personal (uno por uno, con pausa)
+      let okCount = 0; const failed = [];
+      for (let i = 0; i < ownerIds.length; i++) {
+        const owner = contacts.find((c) => c.id === ownerIds[i]);
+        setTgModal((t) => ({ ...t, progress: `Enviando a ${owner?.name || 'contacto'} (${i + 1}/${ownerIds.length})...` }));
+        try {
+          const r = await fetch('/api/send-listing', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ modelId: m.id, contactId: ownerIds[i] }) });
+          const out = await r.json();
+          if (!out.ok) throw new Error(out.error || 'Falló');
+          okCount++;
+        } catch (err) { failed.push(`${owner?.name || 'contacto'}: ${err.message}`); }
+        if (i < ownerIds.length - 1) await new Promise((res) => setTimeout(res, 2000 + Math.random() * 2500));
+      }
+      const dest = sendChannel ? 'tu grupo' : '';
+      if (ownerIds.length === 0) showToast('Publicado', `Listing enviado a tu grupo para ${m.name}`, 'success');
+      else if (failed.length === 0) showToast('Publicado', `${m.name}: ${[dest, `${okCount} dueño${okCount !== 1 ? 's' : ''}`].filter(Boolean).join(' + ')}`, 'success');
+      else showToast('Parcial', `${sendChannel ? 'Grupo OK. ' : ''}Dueños ${okCount}/${ownerIds.length}. Fallaron: ${failed.join(' | ')}`, 'error');
+      if (keepOpen) setTgModal((t) => (t ? { ...t, sending: false, progress: '' } : t)); else setTgModal(null);
     } catch (e) {
       showToast('Error', e.message, 'error');
       setTgModal((t) => ({ ...t, sending: false }));
@@ -691,7 +705,7 @@ export default function AppShell({ userEmail }) {
                           <div className="cavatar">{initials(c.name)}</div>
                           <div style={{ flex: 1 }}>
                             <div className="cname2">{c.name}</div>
-                            <div className="chandle">{c.telegram || 'No Telegram'}</div>
+                            <div className="chandle">{c.telegram || 'No Telegram'}{c.receives_listings ? ' · 📤 recibe listings' : ''}</div>
                             {c.notes && <div className="cmeta2">{c.notes}</div>}
                             {c.looking_for && <div className="cmeta2" style={{ marginTop: 4, color: 'var(--gold-dim)' }}>Busca: {c.looking_for}</div>}
                             {c.categories && <div className="cmeta2" style={{ marginTop: 4 }}>Categorías: {c.categories}</div>}
@@ -753,7 +767,7 @@ export default function AppShell({ userEmail }) {
       {contactModal && <ContactModal cm={contactModal} setCm={setContactModal} onSave={saveContact} onClose={() => setContactModal(null)} saving={saving} />}
       {searchModal && <SearchModal sm={searchModal} setSm={setSearchModal} buyers={buyers} onSave={saveSearch} onClose={() => setSearchModal(null)} saving={saving} />}
       {alertModal && <AlertModal am={alertModal} setAm={setAlertModal} models={models} onSave={saveAlert} onClose={() => setAlertModal(null)} saving={saving} />}
-      {tgModal && <TgModal tg={tgModal} setTg={setTgModal} onSend={sendToTelegram} onSaveConfig={saveTgConfig} onClose={() => setTgModal(null)} emoji={settings.listing_emoji || '🌴'} />}
+      {tgModal && <TgModal tg={tgModal} setTg={setTgModal} contacts={contacts} onAddOwner={addOwner} onSetOwner={setOwnerFlag} onSend={sendToTelegram} onSaveConfig={saveTgConfig} onClose={() => setTgModal(null)} emoji={settings.listing_emoji || '🌴'} />}
 
       {toast && <div className={`toast ${toast.type}`}><div className="toast-title">{toast.title}</div><div className="toast-msg">{toast.msg}</div></div>}
     </div>
@@ -985,6 +999,12 @@ function ContactModal({ cm, setCm, onSave, onClose, saving }) {
             <Field label="Full Name *" full><input className="finput" value={cm.data.name} onChange={(e) => set('name', e.target.value)} placeholder="Nombre" /></Field>
             <Field label="Telegram Handle" full><input className="finput" value={cm.data.telegram} onChange={(e) => set('telegram', e.target.value)} placeholder="@username" /></Field>
             <Field label="Notes" full><textarea className="ftxt" value={cm.data.notes} onChange={(e) => set('notes', e.target.value)} placeholder="Info adicional..." /></Field>
+            <Field label="Listings automáticos" full>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                <input type="checkbox" checked={!!cm.data.receives_listings} onChange={(e) => set('receives_listings', e.target.checked)} />
+                Enviarle cada perfil nuevo desde mi cuenta de Telegram
+              </label>
+            </Field>
             {cm.type === 'lead' && <Field label="Profile They're Looking For" full><textarea className="ftxt" value={cm.data.looking_for} onChange={(e) => set('looking_for', e.target.value)} placeholder="Qué perfil busca..." /></Field>}
             {cm.type === 'seller' && <Field label="Model Categories" full><input className="finput" value={cm.data.categories} onChange={(e) => set('categories', e.target.value)} placeholder="Fitness, Cosplay..." /></Field>}
           </div>
@@ -1036,9 +1056,34 @@ function AlertModal({ am, setAm, models, onSave, onClose, saving }) {
   );
 }
 
-function TgModal({ tg, setTg, onSend, onSaveConfig, onClose, emoji }) {
+function TgModal({ tg, setTg, contacts, onAddOwner, onSetOwner, onSend, onSaveConfig, onClose, emoji }) {
   const [token, setToken] = useState(tg.token);
   const [chatId, setChatId] = useState(tg.chatId);
+  const owners = contacts.filter((c) => c.receives_listings && c.telegram);
+  const others = contacts.filter((c) => !c.receives_listings && c.telegram);
+  const selected = (tg.selected || []).filter((id) => owners.some((o) => o.id === id));
+  const sendChannel = tg.sendChannel !== false;
+  const [newName, setNewName] = useState('');
+  const [newHandle, setNewHandle] = useState('');
+  const toggleOwner = (id) => setTg((t) => ({ ...t, selected: t.selected.includes(id) ? t.selected.filter((x) => x !== id) : [...t.selected, id] }));
+  const preset = (ch, ids) => setTg((t) => ({ ...t, sendChannel: ch, selected: ids }));
+  const allIds = owners.map((o) => o.id);
+  const busy = tg.sending;
+  async function addNew() {
+    if (!newName.trim() || !newHandle.trim()) return;
+    const c = await onAddOwner(newName, newHandle);
+    if (c) { setNewName(''); setNewHandle(''); setTg((t) => ({ ...t, selected: [...t.selected, c.id] })); }
+  }
+  async function addExisting(id) {
+    if (!id) return;
+    const c = await onSetOwner(id, true);
+    if (c) setTg((t) => ({ ...t, selected: [...t.selected, id] }));
+  }
+  async function removeOwner(id) {
+    const c = await onSetOwner(id, false);
+    if (c) setTg((t) => ({ ...t, selected: t.selected.filter((x) => x !== id) }));
+  }
+  const sendLabel = busy ? 'Enviando...' : sendChannel && selected.length ? `Enviar: grupo + ${selected.length} dueño${selected.length !== 1 ? 's' : ''}` : sendChannel ? 'Enviar: solo mi grupo' : selected.length ? `Enviar: ${selected.length} dueño${selected.length !== 1 ? 's' : ''}` : 'Elegí destinatarios';
   const m = tg.model;
   const photos = m.photos || [];
   const info = photos.length === 0 ? 'Sin fotos — se envía solo el texto.' : photos.length === 1 ? '1 foto con el listing como caption.' : `${photos.length} fotos como media group, listing en la primera.`;
@@ -1057,17 +1102,60 @@ function TgModal({ tg, setTg, onSend, onSaveConfig, onClose, emoji }) {
             <Field label="Chat ID" full><input className="finput" value={chatId} onChange={(e) => setChatId(e.target.value)} placeholder="-1001234567890 o @canal" /></Field>
           </div>
           <div style={{ marginTop: 20 }}>
+            <div className="lp-lbl">¿A quién enviar?</div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '8px 0 12px' }}>
+              <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => preset(true, [])}>Solo mi grupo</button>
+              <button className="btn btn-ghost btn-sm" disabled={busy || !owners.length} onClick={() => preset(false, allIds)}>Todos los dueños</button>
+              <button className="btn btn-ghost btn-sm" disabled={busy || !owners.length} onClick={() => preset(true, allIds)}>Grupo + todos los dueños</button>
+              <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => preset(false, [])}>Ninguno</button>
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', marginBottom: 8 }}>
+              <input type="checkbox" checked={sendChannel} onChange={(e) => setTg((t) => ({ ...t, sendChannel: e.target.checked }))} disabled={busy} />
+              Mi grupo / canal (con número de modelo)
+            </label>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', margin: '10px 0 6px', letterSpacing: 1 }}>DUEÑOS DE MARKETS · se envían desde tu cuenta, sin número de modelo</div>
+            {owners.length === 0 && <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: 6 }}>Todavía no hay dueños. Agregá el primero abajo.</div>}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {owners.map((o) => (
+                <div key={o.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', flex: 1 }}>
+                    <input type="checkbox" checked={selected.includes(o.id)} onChange={() => toggleOwner(o.id)} disabled={busy} />
+                    {o.name} <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{o.telegram}</span>
+                  </label>
+                  <button className="btn btn-outline btn-sm" disabled={busy} onClick={() => onSend(token.trim(), chatId.trim(), [o.id], false, true)}>Solo a este</button>
+                  <button className="icon-btn del" disabled={busy} title="Quitar de dueños (el contacto se mantiene)" onClick={() => removeOwner(o.id)}>✕</button>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>
+              <input className="finput" style={{ flex: 1, minWidth: 110 }} value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Nombre" />
+              <input className="finput" style={{ flex: 1, minWidth: 110 }} value={newHandle} onChange={(e) => setNewHandle(e.target.value)} placeholder="@usuario" />
+              <button className="btn btn-gold btn-sm" disabled={busy || !newName.trim() || !newHandle.trim()} onClick={addNew}>+ Agregar</button>
+            </div>
+            {others.length > 0 && (
+              <select className="fsel2" style={{ marginTop: 8 }} value="" onChange={(e) => addExisting(e.target.value)} disabled={busy}>
+                <option value="">— o agregar un contacto que ya tengo —</option>
+                {others.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.telegram})</option>)}
+              </select>
+            )}
+            {tg.progress && <div style={{ fontSize: 11, color: 'var(--gold)', marginTop: 10, letterSpacing: 1 }}>{tg.progress}</div>}
+          </div>
+          <div style={{ marginTop: 20 }}>
             <div className="lp-lbl">Message Preview</div>
             <div style={{ fontSize: 11, color: 'var(--gold)', marginBottom: 8, letterSpacing: 1 }}>{info}</div>
             <div className="lp-box" style={{ fontSize: 11, lineHeight: 1.8 }}>{buildListing(m, emoji)}</div>
+            {owners.length > 0 && <>
+              <div className="lp-lbl" style={{ marginTop: 14 }}>Versión para dueños (sin número de modelo)</div>
+              <div className="lp-box" style={{ fontSize: 11, lineHeight: 1.8 }}>{buildListing(m, emoji, false)}</div>
+            </>}
           </div>
         </div>
         <div className="mfoot">
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
           <button className="btn btn-outline" onClick={() => onSaveConfig(token.trim(), chatId.trim())}>Save Config</button>
-          <button className="btn btn-tg" onClick={() => onSend(token.trim(), chatId.trim())} disabled={tg.sending}>
+          <button className="btn btn-tg" onClick={() => onSend(token.trim(), chatId.trim(), selected, sendChannel)} disabled={busy || (!sendChannel && selected.length === 0)}>
             <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: 13, height: 13 }}><path d={TG_PATH} /></svg>
-            {tg.sending ? 'Enviando...' : 'Send Now'}
+            {sendLabel}
           </button>
         </div>
       </div>
