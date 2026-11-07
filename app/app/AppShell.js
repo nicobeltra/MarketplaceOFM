@@ -486,6 +486,7 @@ export default function AppShell({ userEmail }) {
           </div>
         ))}
         <div className="sb-foot">
+          <button className="btn btn-outline btn-sm" style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }} onClick={() => router.push('/app/leads')}>Reclutamiento</button>
           <div className="sb-user">{userEmail}</div>
           <button className="btn btn-ghost btn-sm" style={{ width: '100%', justifyContent: 'center' }} onClick={logout}>Cerrar sesión</button>
         </div>
